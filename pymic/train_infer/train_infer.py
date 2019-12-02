@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, division
 
+import os 
 import sys
 import time
 import scipy
@@ -11,6 +12,12 @@ import numpy as np
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+
+na = os.path.realpath(__file__)
+pna = os.path.dirname(na)
+ppna = os.path.dirname(pna)
+pppna = os.path.dirname(ppna)
+sys.path.append(pppna)
 
 from scipy import special
 from datetime import datetime
@@ -318,6 +325,7 @@ if __name__ == "__main__":
     stage    = str(sys.argv[1])
     cfg_file = str(sys.argv[2])
     config   = parse_config(cfg_file)
+    # print(config)
     agent    = TrainInferAgent(config, stage)
     agent.run()
 

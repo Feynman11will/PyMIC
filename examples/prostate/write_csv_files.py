@@ -85,7 +85,8 @@ def obtain_patient_names():
 if __name__ == "__main__":
     # create cvs file for promise 2012
     fields      = ['image', 'label']
-    data_dir    = 'data/promise12/preprocess'
+    # "/data1/wanglonglong/DataSet/prostate"
+    data_dir    = '/data1/wanglonglong/DataSet/prostate/preprocess'
     output_file = 'config/data/image_all.csv'
     create_csv_file(data_dir, output_file, fields)
 

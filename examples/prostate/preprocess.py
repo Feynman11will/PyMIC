@@ -6,6 +6,12 @@ import numpy as np
 import SimpleITK as sitk 
 
 from scipy import ndimage
+pwd = os.path.realpath(__file__)
+pname = os.path.dirname(pwd)
+pname = os.path.dirname(pname)
+ppname =os.path.dirname(pname)
+sys.path.append(ppname)
+print(f"---->sys.path:{sys.path}")
 from pymic.util.image_process import *
 
 def resize_ND_volume_to_given_shape(volume, out_shape, order = 3):
@@ -84,8 +90,8 @@ def image_resample_crop(input_img_name, input_lab_name, output_img_name, output_
 
 def preprocess_promis12(data_dir):
     for part in [1, 2, 3]:
-        input_folder = data_dir + "TrainingData_Part{0:}".format(part)
-        output_folder = data_dir +"preprocess/"
+        input_folder = os.path.join(data_dir ,"TrainingData_Part{0:}".format(part)) 
+        output_folder = os.path.join(data_dir ,"preprocess/")
         file_names = os.listdir(input_folder)
         file_names = [item for item in file_names \
                 if (("mhd" in item) and ("segmentation" not in item)) ]
@@ -104,5 +110,5 @@ def preprocess_promis12(data_dir):
                 image_resample_crop(img_name_full, lab_name_full, out_name_full, out_lab_full)
 
 if __name__ == "__main__":
-    data_dir = "data/promise12/"
+    data_dir = "/data1/wanglonglong/DataSet/prostate"
     preprocess_promis12(data_dir) 
