@@ -199,7 +199,8 @@ segmentation_loss_dict = {'dice_loss': soft_dice_loss,
         'cross_entropy_loss': cross_entropy_loss,
         'ce_dice_loss': ce_dice_loss,
         'distance_loss':distance_loss,
-        'dice_distance_loss': dice_distance_loss}
+        'dice_distance_loss': dice_distance_loss,
+        'dice_ce_distance_loss':[soft_dice_loss,cross_entropy_loss]}
 
 class SegmentationLossCalculator():
     def __init__(self, loss_name = 'dice_loss', deep_supervision = True):
@@ -216,6 +217,7 @@ class SegmentationLossCalculator():
         if("label_distance" in loss_input_dict):
             lab_dis = loss_input_dict["label_distance"]
         if(isinstance(predict, tuple) or isinstance(predict, list)):
+            
             if(self.deep_spv):
                 predict_num = len(predict)
                 loss = 0.0
@@ -226,14 +228,22 @@ class SegmentationLossCalculator():
             else:
                 loss = self.get_loss_of_single_prediction(predict[0], soft_y, lab_dis, softmax)
         else:
+            
             loss = self.get_loss_of_single_prediction(predict, soft_y, lab_dis, softmax)
         return loss
     
     def get_loss_of_single_prediction(self, predict, soft_y, lab_dis = None, softmax = True):
+        
         if(self.loss_name == 'distance_loss'):
             loss = self.loss_func(predict, lab_dis, softmax)
         elif(self.loss_name == "dice_distance_loss"):
             loss = self.loss_func(predict, soft_y, lab_dis, softmax)
+        elif(self.loss_name == "dice_ce_distance_loss"):
+            alpha = 0.1
+            loss1 = self.loss_func[0](predict, soft_y, softmax)
+            loss2 = self.loss_func[1](predict, soft_y, softmax)
+            loss = loss1*(1-alpha)+loss2*alpha
+
         else:
             loss = self.loss_func(predict, soft_y, softmax)
         return loss

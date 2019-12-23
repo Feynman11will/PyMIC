@@ -18,6 +18,7 @@ def volume_infer(image, net, device, class_num,
     sampling the image with patch_shape and use the patch as input of network
     if patch_size is None, use the whole image as input of the network 
     """
+    print(image.shape)
     image = image.to(device)
     if(mini_patch_inshape is None):
         outputs = net(image)

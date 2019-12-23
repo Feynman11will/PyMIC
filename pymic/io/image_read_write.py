@@ -4,7 +4,7 @@ from __future__ import print_function, division
 import os
 import numpy as np
 import SimpleITK as sitk
-
+import cv2
 from PIL import Image
 
 def load_nifty_volume_as_4d_array(filename):
@@ -49,6 +49,7 @@ def load_rgb_image_as_3d_array(filename):
     output['spacing']    = (1.0, 1.0)
     output['direction']  = 0
     return output
+# def load_rgb_image_as_3d_array(filename):
 
 def load_image_as_nd_array(image_name):
     """
@@ -60,6 +61,17 @@ def load_image_as_nd_array(image_name):
     elif(image_name.endswith(".jpg") or image_name.endswith(".jpeg") or
          image_name.endswith(".tif") or image_name.endswith(".png")):
         image_dict = load_rgb_image_as_3d_array(image_name)
+    elif(image_name.endswith(".npy")):
+        img = np.load(image_name)
+        shape = img.shape
+        image = img[None,:,:]
+
+        image_dict = {}
+        image_dict['data_array'] = image
+        image_dict['origin'] = (0, 0)
+        image_dict['spacing'] = (1.0, 1.0)
+        image_dict['direction'] = 0
+
     else:
         raise ValueError("unsupported image format")
     return image_dict

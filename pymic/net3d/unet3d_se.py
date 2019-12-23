@@ -186,4 +186,4 @@ if __name__ == "__main__":
     
     y = Net(xt)
     y = y.detach().numpy()
-    print(y.shape)
+    # print(y.shape)

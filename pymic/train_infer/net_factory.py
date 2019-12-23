@@ -4,7 +4,7 @@ from __future__ import print_function, division
 from pymic.net2d.unet2d import UNet2D
 # from pymic.net3d.unet2d5 import UNet2D5
 from pymic.net3d.unet3d import UNet3D
-
+from pymic.net2d.unetRedefine2d import UNet2DRe
 def get_network(params):
     net_type = params['net_type']
     if(net_type == 'UNet2D'):
@@ -14,5 +14,7 @@ def get_network(params):
         return 
     elif(net_type == 'UNet3D'):
         return UNet3D(params)
+    elif(net_type=='UNet3D'):
+        return UNet2DRe(params)
     else:
         raise ValueError("undefined network {0:}".format(net_type))

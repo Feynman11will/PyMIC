@@ -13,8 +13,6 @@ import matplotlib.pyplot as plt
 from skimage import measure
 import math
 from PIL import Image
-import cv2
-np.set_printoptions(threshold=1e6)
 
 class Rescale(object):
     """Rescale the image in a sample to a given size.
@@ -28,9 +26,9 @@ class Rescale(object):
             aspect ratio the same.
     """
 
-    def __init__(self, scaleMax, inverse = True):
-
-        self.scaleMax = scaleMax
+    def __init__(self, output_size, inverse = True):
+        assert isinstance(output_size, (int, list, tuple))
+        self.output_size = output_size
         self.inverse = inverse
 
     def __call__(self, sample):
@@ -38,8 +36,17 @@ class Rescale(object):
         input_shape = image.shape
         input_dim   = len(input_shape) - 1
 
-        scale =  np.random.random_sample([2])*self.scaleMax
-        scale = [1.0,1+scale[0],1+scale[1]]
+        if isinstance(self.output_size, (list, tuple)):
+            output_size = self.output_size
+            if(output_size[0] is None):
+                output_size[0] = input_shape[1]
+            assert(len(output_size) == input_dim)
+        else:
+            min_edge = min(input_shape[1:])
+            output_size = [self.output_size * input_shape[i+1] / min_edge for \
+                            i in range(input_dim)]
+        scale = [(output_size[i] + 0.0)/input_shape[1:][i] for i in range(input_dim)]
+        scale = [1.0] + scale
         image = ndimage.interpolation.zoom(image, scale, order = 1)
 
         sample['image'] = image
@@ -52,75 +59,26 @@ class Rescale(object):
         return sample
 
     def inverse_transform_for_prediction(self, sample):
-        raise (ValueError("not implemented"))
-
-
-class RescaleOrig(object):
-    """Rescale the image in a sample to a given size.
-
-    Args:
-        output_size (tuple/list or int): Desired output size.
-            If tuple/list, output_size should in the format of [D, H, W] or [H, W].
-            Channel number is kept the same as the input. If D is None, the input image
-            is only reslcaled in 2D.
-            If int, the smallest axis is matched to output_size keeping
-            aspect ratio the same.
-    """
-
-    def __init__(self, output_size, inverse=True):
-        assert isinstance(output_size, (int, list, tuple))
-        self.output_size = output_size
-        self.inverse = inverse
-
-    def __call__(self, sample):
-        image = sample['image']
-        input_shape = image.shape
-        input_dim = len(input_shape) - 1
-
-        if isinstance(self.output_size, (list, tuple)):
-            output_size = self.output_size
-            if (output_size[0] is None):
-                output_size[0] = input_shape[1]
-            assert (len(output_size) == input_dim)
-        else:
-            min_edge = min(input_shape[1:])
-            output_size = [self.output_size * input_shape[i + 1] / min_edge for \
-                           i in range(input_dim)]
-        scale = [(output_size[i] + 0.0) / input_shape[1:][i] for i in range(input_dim)]
-        scale = [1.0] + scale
-        image = ndimage.interpolation.zoom(image, scale, order=1)
-
-        sample['image'] = image
-        sample['Rescale_origin_shape'] = json.dumps(input_shape)
-        if ('label' in sample):
-            label = sample['label']
-            label = ndimage.interpolation.zoom(label, scale, order=0)
-            sample['label'] = label
-
-        return sample
-
-    def inverse_transform_for_prediction(self, sample):
         ''' rescale sample['predict'] (5D or 4D) to the original spatial shape.
-         assume batch size is 1, otherwise scale may be different for
+         assume batch size is 1, otherwise scale may be different for 
          different elemenets in the batch.
 
         origin_shape is a 4D or 3D vector as saved in __call__().'''
-        if (isinstance(sample['Rescale_origin_shape'], list) or \
-                isinstance(sample['Rescale_origin_shape'], tuple)):
+        if(isinstance(sample['Rescale_origin_shape'], list) or \
+            isinstance(sample['Rescale_origin_shape'], tuple)):
             origin_shape = json.loads(sample['Rescale_origin_shape'][0])
         else:
             origin_shape = json.loads(sample['Rescale_origin_shape'])
-        origin_dim = len(origin_shape) - 1
+        origin_dim   = len(origin_shape) - 1
         predict = sample['predict']
         input_shape = predict.shape
-        scale = [(origin_shape[1:][i] + 0.0) / input_shape[2:][i] for \
-                 i in range(origin_dim)]
+        scale = [(origin_shape[1:][i] + 0.0)/input_shape[2:][i] for \
+                i in range(origin_dim)]
         scale = [1.0, 1.0] + scale
 
-        output_predict = ndimage.interpolation.zoom(predict, scale, order=1)
+        output_predict = ndimage.interpolation.zoom(predict, scale, order = 1)
         sample['predict'] = output_predict
         return sample
-
 
 class RandomFlip(object):
     """
@@ -207,7 +165,7 @@ class RandomRotate(object):
         image = sample['image']
         input_shape = image.shape
         input_dim = len(input_shape) - 1
-
+        
         transform_param_list = []
         if(self.angle_range_d is not None):
             angle_d = np.random.uniform(self.angle_range_d[0], self.angle_range_d[1])
@@ -219,9 +177,7 @@ class RandomRotate(object):
             if(self.angle_range_w is not None):
                 angle_w = np.random.uniform(self.angle_range_w[0], self.angle_range_w[1])
                 transform_param_list.append([angle_w, (-2, -3)])
-
         assert(len(transform_param_list) > 0)
-
 
         sample['image'] = self.__apply_transformation(image, transform_param_list, 1)
         sample['RandomRotate_Param'] = json.dumps(transform_param_list)
@@ -523,7 +479,7 @@ class ChannelWiseNormalize(object):
         zero_to_random (bool, or tuple/list or bool): indicate whether zero values
              in each channel is replaced  with random values.
     """
-    def __init__(self, mean, std, chns = None, zero_to_random = True, inverse = False):
+    def __init__(self, mean, std, chns = None, zero_to_random = False, inverse = False):
         self.mean = mean
         self.std  = std
         self.chns = chns
@@ -535,7 +491,6 @@ class ChannelWiseNormalize(object):
         1. 
         '''
         image= sample['image']
-
         mask = image[0] > 0
         chns = self.chns
         if(chns is None):
@@ -560,61 +515,6 @@ class ChannelWiseNormalize(object):
                 chn_random = np.random.normal(0, 1, size = chn_norm.shape)
                 chn_norm[mask == 0] = chn_random[mask == 0]
             image[chn] = chn_norm
-
-        sample['image'] = image
-        return sample
-
-    def inverse_transform_for_prediction(self, sample):
-        raise(ValueError("not implemented"))
-class ChannelWiseNorm(object):
-    """Nomralize the image (shape [C, D, H, W] or [C, H, W]) for each channel
-
-    Args:
-        mean (None or tuple/list): The mean values along each channel.
-        std  (None or tuple/list): The std values along each channel.
-            if mean and std are None, calculate them from non-zero region
-        chns (None, or tuple/list): The list of channel indices
-        zero_to_random (bool, or tuple/list or bool): indicate whether zero values
-             in each channel is replaced  with random values.
-    """
-    def __init__(self, mean, std, chns = None, zero_to_random = True, inverse = False):
-        self.mean = mean
-        self.std  = std
-        self.chns = chns
-        self.zero_to_random = zero_to_random
-        self.inverse = inverse
-
-    def __call__(self, sample):
-        '''
-        1.
-        '''
-        image= sample['image']
-
-        mask = image[0] > 0
-        chns = self.chns
-        if(chns is None):
-            chns = range(image.shape[0])
-        zero_to_random = self.zero_to_random
-        if(isinstance(zero_to_random, bool)):
-            zero_to_random = [zero_to_random]*len(chns)
-        if(not(self.mean is None and self.std is None)):
-            assert(len(self.mean) == len(self.std))
-            assert(len(self.mean) == len(chns))
-        for i in range(len(chns)):
-            chn = chns[i]
-            if(self.mean is None and self.std is None):
-                pixels = image[chn][mask > 0]
-                chn_mean = pixels.mean()
-                chn_std  = pixels.std()
-            else:
-                chn_mean = self.mean[i]
-                chn_std  = self.std[i]
-            # chn_norm = (image[chn] - chn_mean)/chn_std
-
-            if(zero_to_random[i]):
-                chn_random = np.random.normal(0, 1, size = image[chn].shape)
-                # chn_norm[mask == 0] = chn_random[mask == 0]
-            image[chn] = chn_random
 
         sample['image'] = image
         return sample
@@ -655,13 +555,10 @@ class LabelConvert(object):
         self.target_list = target_list
         self.inverse = inverse
         assert(len(source_list) == len(target_list))
-
+    
     def __call__(self, sample):
         label = sample['label']
-
-
         label_converted = convert_label(label, self.source_list, self.target_list)
-
         sample['label'] = label_converted
         return sample
     
@@ -677,16 +574,11 @@ class LabelToProbability(object):
     def __init__(self, class_num, inverse = False):
         self.class_num = class_num 
         self.inverse   = inverse
-
-
+    
     def __call__(self, sample):
         label = sample['label'][0]
         label_prob = []
-        # print('dfsfdsafdsafdsa',label[np.logical_and(label!= 1, label != 0)])
-        label[np.logical_and(label!= 1, label != 0)] = 1
-        # print('dfsfdsafdsafdsa',label[np.logical_and(label!= 1, label != 0)])
         for i in range(self.class_num):
-
             temp_prob = label == i*np.ones_like(label)
             label_prob.append(temp_prob)
         label_prob = np.asarray(label_prob, np.float32)
@@ -781,9 +673,8 @@ class TargetSample():
         img = sample['image']
         SHAPE = img.shape
         label = sample['label']
-
         labels, nums = measure.label(label, return_num=True)
-        props = measure.regionprops(labels[0,:,:])
+        props = measure.regionprops(labels)
 
         bboxs = []
         centers = []
@@ -797,46 +688,31 @@ class TargetSample():
             centers.append(center)
 
         lc = len(centers)
-        rdInt = random.randint(0, lc-1)
+        rdInt = random.randint(0, lc)
 
         bbox = bboxs[rdInt]
         wh = np.array([bbox[2] - bbox[0], bbox[3] - bbox[1]])
         bboxCent = np.array([(bbox[2] + bbox[0]) / 2, (bbox[3] + bbox[1]) / 2])
-        if wh[0]<64 and wh[1]<64:
-            expanBBox = np.array(
-                [bboxCent[0] - self.outSize[0] / 2, bboxCent[1] - self.outSize[1] / 2, bboxCent[0] + self.outSize[0] / 2, bboxCent[1] + self.outSize[1] / 2])
+        wh = wh * 5
 
-        else :
-            expanBBox = np.array(
-                [(bboxCent[0] - self.outSize[0] / 2)-30.,( bboxCent[1] - self.outSize[1] / 2)-30., (bboxCent[0] + self.outSize[0] / 2)+30., (bboxCent[1] + self.outSize[1] / 2)+30.])
-            expanBBox[0] = max(0,expanBBox[0])
-            expanBBox[1] = max(0, expanBBox[1])
-            expanBBox[2] = min(512, expanBBox[2])
-            expanBBox[3] = min(512, expanBBox[3])
-        # expanBBox = np.array(
-        #     [bboxCent[0] - wh[0] / 2, bboxCent[1] - wh[1] / 2, bboxCent[0] + wh[0] / 2, bboxCent[1] + wh[1] / 2])
+        expanBBox = np.array(
+            [bboxCent[0] - wh[0] / 2, bboxCent[1] - wh[1] / 2, bboxCent[0] + wh[0] / 2, bboxCent[1] + wh[1] / 2])
         for i, di in enumerate(expanBBox):
             expanBBox[i] = max(0, di)
         expanBBox = np.asarray(expanBBox, np.int)
 
-        labelCrop = label[:,expanBBox[0]:expanBBox[2], expanBBox[1]:expanBBox[3]]
+        labelCrop = label[expanBBox[0]:expanBBox[2], expanBBox[1]:expanBBox[3]]
+        labelCrop = Image.fromarray(labelCrop)
+        labelCrop = labelCrop.resize(self.outSize)
 
-        ergou = labelCrop[0, :, :]
-        ergou = np.asarray(ergou,np.float)
-        labelCrop = cv2.resize(ergou, (self.outSize[0],self.outSize[1]))
-
-        imgCrop = img[:,expanBBox[0]:expanBBox[2], expanBBox[1]:expanBBox[3]]
-        imgCrop = cv2.resize(imgCrop[0,:,:], (self.outSize[0],self.outSize[1]))
-
-        sample['image'] = imgCrop[None,:,:]
-        sample['label'] = labelCrop[None,:,:]
+        imgCrop = label[expanBBox[0]:expanBBox[2], expanBBox[1]:expanBBox[3]]
+        imgCrop = Image.fromarray(imgCrop)
+        imgCrop = imgCrop.resize(self.outSize)
+        sample['image'] = imgCrop
+        sample['label'] = labelCrop
         return sample
 
-    def inverse_transform_for_prediction(self, sample):
-        raise(ValueError("not implemented"))
-
 def get_transform(name, params):
-    # LabelConvert, RandomCrop, LabelToProbability
     if (name == "CropWithBoundingBox"):
         start = params["CropWithBoundingBox_start".lower()]
         output_size = params["CropWithBoundingBox_output_size".lower()]
@@ -844,9 +720,9 @@ def get_transform(name, params):
         return CropWithBoundingBox(start, output_size, inverse)
 
     elif(name == "Rescale"):
-        scaleMax = params["Rescale_scaleMax".lower()]
+        output_size = params["Rescale_output_size".lower()]
         inverse     = params["Rescale_inverse".lower()]
-        return Rescale(scaleMax, inverse)
+        return Rescale(output_size, inverse)
         
     elif(name == "RandomFlip"):
         flip_depth  = params["RandomFlip_flip_depth".lower()]
@@ -920,12 +796,5 @@ def get_transform(name, params):
         outSize = params['ReSampleOutSize'.lower()]
 
         return TargetSample(outSize)
-    elif(name=='ChannelWiseNorm'):
-        chns = params['ChannelWiseNormalize_channels'.lower()]
-        mean = params['ChannelWiseNormalize_mean'.lower()]
-        std = params['ChannelWiseNormalize_std'.lower()]
-        zero_to_random = True
-        inverse = params['ChannelWiseNormalize_inverse'.lower()]
-        return ChannelWiseNorm(mean, std, chns, zero_to_random, inverse)
     else:
         raise ValueError("undefined transform :{0:}".format(name))

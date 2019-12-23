@@ -54,8 +54,10 @@ class NiftyDataset(Dataset):
         if (self.with_label):    
             label_name = "{0:}/{1:}".format(self.root_dir, self.csv_items.iloc[idx, -1])
             label = load_image_as_nd_array(label_name)['data_array']
-            label = np.asarray(label, np.int32)
+
+            label[np.logical_and(label!=1,label!=0)]=1
             sample['label'] = label
+            sample['pathName'] = label_name
         if self.transform:
             sample = self.transform(sample)
 
